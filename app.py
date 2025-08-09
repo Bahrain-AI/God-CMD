@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from flask import Flask, send_from_directory, request, abort
 from flask_socketio import SocketIO
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 
 load_dotenv()
 
@@ -13,6 +14,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 SESSION_NAME = os.getenv("SESSION_NAME", "godcmd")
 KEYWORDS = [k.strip().lower() for k in os.getenv("KEYWORDS", "").split(",") if k.strip()]
 PORT = int(os.getenv("PORT", "5000"))
+STRING_SESSION = os.getenv("STRING_SESSION", "")
 
 app = Flask(__name__, static_folder="web")
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
@@ -29,9 +31,18 @@ def verify_init_data(init_data: str) -> bool:
     except Exception:
         return False
 
+# ==== ROUTES ====
 @app.get("/")
 def index():
     return send_from_directory("web", "index.html")
+
+@app.route("/healthz")
+def health_check():
+    return "OK", 200
+
+@app.route("/<path:path>")
+def static_files(path):
+    return send_from_directory("web", path)
 
 @app.post("/verify")
 def verify():
@@ -40,24 +51,25 @@ def verify():
         abort(403)
     return "ok"
 
-@app.route("/healthz")
-def health_check():
-    return "OK", 200
+# ==== TELEGRAM CLIENT INITIALIZATION ====
+if BOT_TOKEN:
+    print("[INFO] Starting Telegram client in BOT mode...")
+    client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+    client.start(bot_token=BOT_TOKEN)
+elif STRING_SESSION:
+    print("[INFO] Starting Telegram client in USER mode with STRING_SESSION...")
+    client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
+    client.start()
+else:
+    raise RuntimeError("Set either BOT_TOKEN or STRING_SESSION in environment variables.")
 
-# ---- Telethon client initialization in BOT mode ----
-if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN must be set in environment variables for bot mode.")
-print("[INFO] Starting Telegram client in BOT mode...")
-client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
-client.start(bot_token=BOT_TOKEN)
-
-# ---- Telegram message handler ----
+# ==== TELEGRAM MESSAGE HANDLER ====
 @client.on(events.NewMessage)
 async def on_new_message(ev):
     try:
         text = ev.raw_text or ""
         sender = await ev.get_sender()
-        username = sender.username if sender and sender.username else f"id:{getattr(sender,'id','?')}"
+        username = (sender.username if sender and sender.username else f"id:{getattr(sender,'id','?')}")
         chat = (await ev.get_chat()).title if ev.chat else "Private"
         socketio.emit("live_feed", {"sender": username, "text": text, "chat": chat})
 
@@ -68,11 +80,12 @@ async def on_new_message(ev):
                 break
 
         if ev.photo or ev.media:
-            socketio.emit("media_item", {"url": ""})  # Placeholder for media
+            # TODO: persist media, serve via CDN, emit URL
+            socketio.emit("media_item", {"url": ""})
     except Exception as e:
         print("handler error:", e)
 
-# ---- Run ----
+# ==== RUN APP ====
 if __name__ == "__main__":
     with client:
         socketio.run(app, host="0.0.0.0", port=PORT, allow_unsafe_werkzeug=True)

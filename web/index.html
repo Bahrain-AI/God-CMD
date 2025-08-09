@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cyberpunk HoloDeck - GOD Mode</title>
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+    :root { color-scheme: dark; }
+    body {
+        margin: 0;
+        background: radial-gradient(circle at center, #05010f, #000014);
+        font-family: 'Orbitron', sans-serif;
+        color: #58f5ff;
+        overflow: hidden;
+    }
+    .animated-bg {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: 
+            linear-gradient(115deg, rgba(88,245,255,0.05) 25%, transparent 25%),
+            linear-gradient(245deg, rgba(88,245,255,0.05) 25%, transparent 25%),
+            repeating-linear-gradient(0deg, rgba(88,245,255,0.03) 0px, rgba(88,245,255,0.03) 1px, transparent 1px, transparent 40px),
+            repeating-linear-gradient(90deg, rgba(88,245,255,0.03) 0px, rgba(88,245,255,0.03) 1px, transparent 1px, transparent 40px);
+        background-size: 60px 60px, 60px 60px, 40px 40px, 40px 40px;
+        animation: bgMove 40s linear infinite;
+        z-index: 0;
+    }
+    @keyframes bgMove {
+        from { background-position: 0 0, 0 0, 0 0, 0 0; }
+        to { background-position: 600px 600px, -600px -600px, 0 600px, 600px 0; }
+    }
+    .grid-overlay {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: radial-gradient(circle, transparent 70%, rgba(0,0,0,0.85) 100%);
+        pointer-events: none;
+        z-index: 1;
+    }
+    .widget {
+        position: absolute;
+        background: rgba(0,0,0,0.85);
+        border: 2px solid #58f5ff;
+        border-radius: 12px;
+        backdrop-filter: blur(8px);
+        width: 250px; height: 150px;
+        cursor: move;
+        user-select: none;
+        box-shadow: 0 0 20px rgba(88,245,255,0.6);
+        transition: transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out, opacity 4s ease-in-out;
+        opacity: 0.9;
+        overflow: hidden;
+        resize: both;
+        z-index: 2;
+        color: #e0f7ff;
+    }
+    .widget:hover {
+        transform: scale(1.03);
+        box-shadow: 0 0 30px rgba(88,245,255,0.9);
+        opacity: 1;
+    }
+    .widget-header {
+        display: flex; justify-content: space-between; align-items: center;
+        background: rgba(88,245,255,0.12);
+        padding: 4px 8px;
+        border-bottom: 1px solid rgba(88,245,255,0.4);
+    }
+    .widget-header h3 {
+        margin: 0; font-size: 14px;
+        text-shadow: 0 0 6px #58f5ff;
+    }
+    .widget-controls span {
+        margin-left: 8px; cursor: pointer; transition: color 0.2s ease;
+    }
+    .widget-controls span:hover { color: #ffffff; }
+    .widget-content {
+        padding: 8px; font-size: 12px; overflow-y: auto; height: calc(100% - 30px);
+    }
+    .mock-message {
+        margin-bottom: 6px; padding-bottom: 4px;
+        border-bottom: 1px dashed rgba(88,245,255,0.2);
+    }
+    .media-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)); gap: 4px;
+    }
+    .media-grid img { width: 100%; height: 50px; object-fit: cover; }
+    .theme-panel {
+        position: fixed; bottom: 20px; right: 20px;
+        background: rgba(0,0,0,0.9);
+        border: 1px solid #58f5ff;
+        border-radius: 8px;
+        padding: 10px;
+        display: flex; gap: 8px; z-index: 3;
+    }
+    .color-swatch {
+        width: 20px; height: 20px; border-radius: 50%; cursor: pointer; border: 1px solid #fff;
+    }
+</style>
+</head>
+<body>
+<div class="animated-bg"></div>
+<div class="grid-overlay"></div>
+
+<div class="widget" id="live-feed" style="top: 50px; left: 50px;">
+    <div class="widget-header">
+        <h3>Live Feed</h3>
+        <div class="widget-controls"><span>⚙</span><span>⛶</span><span>✖</span></div>
+    </div>
+    <div class="widget-content" id="live-feed-content">No data yet...</div>
+</div>
+
+<div class="widget" id="keyword-alerts" style="top: 250px; left: 100px;">
+    <div class="widget-header">
+        <h3>Keyword Alerts</h3>
+        <div class="widget-controls"><span>⚙</span><span>⛶</span><span>✖</span></div>
+    </div>
+    <div class="widget-content" id="keyword-alerts-content">No alerts yet...</div>
+</div>
+
+<div class="widget" id="media-hub" style="top: 100px; left: 400px;">
+    <div class="widget-header">
+        <h3>Media Hub</h3>
+        <div class="widget-controls"><span>⚙</span><span>⛶</span><span>✖</span></div>
+    </div>
+    <div class="widget-content media-grid" id="media-hub-content"></div>
+</div>
+
+<script>
+    // Connect to backend Socket.IO server
+    const socket = io();
+
+    // Live feed updates
+    socket.on("live_feed", data => {
+        const feed = document.getElementById("live-feed-content");
+        const div = document.createElement("div");
+        div.className = "mock-message";
+        div.innerHTML = `<strong>${data.sender}</strong>: ${data.text} <br><small>${data.chat}</small>`;
+        feed.prepend(div);
+    });
+
+    // Keyword alerts
+    socket.on("keyword_alert", data => {
+        const alerts = document.getElementById("keyword-alerts-content");
+        const div = document.createElement("div");
+        div.className = "mock-message";
+        div.innerHTML = `Keyword <strong>${data.keyword}</strong> detected in <em>${data.chat}</em>`;
+        alerts.prepend(div);
+    });
+
+    // Media hub
+    socket.on("media_item", data => {
+        const mediaHub = document.getElementById("media-hub-content");
+        if (data.url) {
+            const img = document.createElement("img");
+            img.src = data.url;
+            mediaHub.prepend(img);
+        }
+    });
+</script>
+
+</body>
+</html>

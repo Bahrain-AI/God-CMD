@@ -41,6 +41,11 @@ def verify():
         abort(403)
     return "ok"
 
+# Health check endpoint for Render.com
+@app.route("/healthz")
+def health_check():
+    return "OK", 200
+    
 # Telethon client for your account
 client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
 

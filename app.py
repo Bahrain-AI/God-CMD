@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from flask import Flask, send_from_directory, request, abort
 from flask_socketio import SocketIO
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 
 load_dotenv()
 
@@ -13,9 +14,9 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 SESSION_NAME = os.getenv("SESSION_NAME", "godcmd")
 KEYWORDS = [k.strip().lower() for k in os.getenv("KEYWORDS", "").split(",") if k.strip()]
 PORT = int(os.getenv("PORT", "5000"))
+STRING_SESSION = os.getenv("STRING_SESSION", "")
 
 app = Flask(__name__, static_folder="web")
-# socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 def verify_init_data(init_data: str) -> bool:
@@ -45,10 +46,20 @@ def verify():
 @app.route("/healthz")
 def health_check():
     return "OK", 200
-    
-# Telethon client for your account
-client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
 
+# ---- Telethon client initialization ----
+if BOT_TOKEN:
+    print("[INFO] Starting Telegram client in BOT mode...")
+    client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+    client.start(bot_token=BOT_TOKEN)
+elif STRING_SESSION:
+    print("[INFO] Starting Telegram client in USER mode with STRING_SESSION...")
+    client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
+    client.start()
+else:
+    raise RuntimeError("Set either BOT_TOKEN or STRING_SESSION in environment variables.")
+
+# ---- Telegram message handler ----
 @client.on(events.NewMessage)
 async def on_new_message(ev):
     try:
@@ -70,6 +81,7 @@ async def on_new_message(ev):
     except Exception as e:
         print("handler error:", e)
 
+# ---- Run both Flask & Telethon ----
 if __name__ == "__main__":
     with client:
         socketio.run(app, host="0.0.0.0", port=PORT)

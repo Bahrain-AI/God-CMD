@@ -15,8 +15,8 @@ KEYWORDS = [k.strip().lower() for k in os.getenv("KEYWORDS", "").split(",") if k
 PORT = int(os.getenv("PORT", "5000"))
 
 app = Flask(__name__, static_folder="web")
-# eventlet async mode for Socket.IO
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+# socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 def verify_init_data(init_data: str) -> bool:
     """Verify Telegram WebApp initData per Telegram docs."""

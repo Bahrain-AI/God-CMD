@@ -75,4 +75,4 @@ async def on_new_message(ev):
 # ---- Run ----
 if __name__ == "__main__":
     with client:
-        socketio.run(app, host="0.0.0.0", port=PORT)
+        socketio.run(app, host="0.0.0.0", port=PORT allow_unsafe_werkzeug=True)
